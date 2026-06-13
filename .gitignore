@@ -1,0 +1,6 @@
+node_modules/
+memories.db
+memories.db-shm
+memories.db-wal
+.env
+*.local
