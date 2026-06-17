@@ -7,16 +7,24 @@ import { TOOLS, handleTool } from './tools.js';
 
 const PORT = process.env.PORT ?? 3456;
 const DEFAULT_NAMESPACE = process.env.AGENT_ID ?? 'fleet';
+const FLEET_SECRET = process.env.FLEET_SECRET;
 
 await initDb();
 
 const app = express();
 
-// Health check
+function requireBearer(req, res, next) {
+  if (!FLEET_SECRET) return next(); // auth disabled if no secret configured
+  const auth = req.headers['authorization'] ?? '';
+  if (auth === `Bearer ${FLEET_SECRET}`) return next();
+  res.status(401).json({ error: 'Unauthorized' });
+}
+
+// Health check — unauthenticated
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'vector-memory' }));
 
 // MCP SSE endpoint — one Server instance per connection
-app.get('/sse', async (req, res) => {
+app.get('/sse', requireBearer, async (req, res) => {
   const agentId = req.query.agent_id ?? DEFAULT_NAMESPACE;
 
   const server = new Server(
@@ -36,9 +44,7 @@ app.get('/sse', async (req, res) => {
 });
 
 // MCP message endpoint (SSE transport posts back here)
-app.post('/message', express.json(), async (req, res) => {
-  // SSEServerTransport handles this internally via the transport instance
-  // This route is required by the MCP SSE spec
+app.post('/message', requireBearer, express.json(), async (req, res) => {
   res.status(200).end();
 });
 
